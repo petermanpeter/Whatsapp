@@ -95,7 +95,23 @@ def to_excel_bytes(df: pd.DataFrame) -> bytes:
     # write Excel with pandas
     df.to_excel(buffer, index=False, engine="openpyxl")
     buffer.seek(0)
-    return buffer.read()
+
+    # Load workbook and worksheet
+    wb = load_workbook(buffer)
+    ws = wb.active
+
+    # Set column widths (adjust columns as you want)
+    widths = {'A': 15, 'B': 12, 'C': 20, 'D': 80}  # Example widths for Date, Time, Sender, Message
+    for col, width in widths.items():
+        ws.column_dimensions[col].width = width
+
+    # Save workbook back to bytes buffer
+    new_buffer = BytesIO()
+    wb.save(new_buffer)
+    new_buffer.seek(0)
+
+    return new_buffer.read()
+
 
 def compute_sender_cooccurrence(df: pd.DataFrame, k: int = 5) -> pd.DataFrame:
     """Compute co-occurrence matrix where value[current, previous] = count of times `previous` appeared within last k messages before `current`."""
@@ -195,7 +211,7 @@ if uploaded:
                     title='Top 20 Frequent Words/Phrases',
                     labels={'count': 'Frequency', 'word': 'Word/Phrase'})
     fig_freq.update_layout(
-    height=1200,                            # taller figure to fit more words
+    height=200,                            # taller figure to fit more words
     margin=dict(l=150, r=30, t=50, b=50),   # more left margin for long words
     yaxis=dict(tickfont=dict(size=10))      # smaller y-axis font size if needed
     )
@@ -205,7 +221,7 @@ if uploaded:
     # Offer Excel download (Date in col A, Time in col B, Message in col C as the user requested). We'll order columns accordingly and include Sender as extra column.
     export_df = df2.copy()
     # Create columns in the requested order
-    export_df_for_excel = export_df[["Date", "Time", "Message", "Sender"]]
+    export_df_for_excel = export_df[["Date", "Time", "Sender", "Message", ]]
     excel_bytes = to_excel_bytes(export_df_for_excel)
     st.download_button("Download parsed messages as Excel", data=excel_bytes, file_name="whatsapp_parsed.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
