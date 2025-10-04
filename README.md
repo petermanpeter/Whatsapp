@@ -2,8 +2,7 @@
 Whatsapp message analyser
 
 # Install Command
-pip install streamlit pandas wordcloud matplotlib nltk
-
+pip install streamlit pandas wordcloud matplotlib nltk openpyxl
 
 # Run
 streamlit run App.py

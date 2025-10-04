@@ -4,3 +4,4 @@ wordcloud
 matplotlib
 nltk
 plotly
+openpyxl
