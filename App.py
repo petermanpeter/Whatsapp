@@ -169,7 +169,7 @@ if uploaded:
     #st.bar_chart(sentiment_counts)
     #st.write(f"Avg sentiment: {df_filtered['sentiment'].mean():.3f}")
 
-    #3 Top 50 frequent words/phrases
+    #3 Top 20 frequent words/phrases
     # After filtering df_filtered with selected date range
     messages = df_filtered['message'].dropna().str.lower().str.replace("媒體已略去", "").tolist()
 
@@ -183,16 +183,16 @@ if uploaded:
 
     # Count frequencies
     counter = Counter(words)
-    top50 = counter.most_common(50)
+    top20 = counter.most_common(20)
 
     # Prepare data for plotting
-    df_top50 = pd.DataFrame(top50, columns=['word', 'count'])
+    df_top20 = pd.DataFrame(top20, columns=['word', 'count'])
 
     # Plot horizontal bar chart with Plotly
-    fig_freq = px.bar(df_top50.sort_values('count'), 
+    fig_freq = px.bar(df_top20.sort_values('count'), 
                     x='count', y='word',
                     orientation='h',
-                    title='Top 50 Frequent Words/Phrases',
+                    title='Top 20 Frequent Words/Phrases',
                     labels={'count': 'Frequency', 'word': 'Word/Phrase'})
     fig_freq.update_layout(
     height=1200,                            # taller figure to fit more words
