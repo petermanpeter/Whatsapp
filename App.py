@@ -151,6 +151,9 @@ if uploaded:
 
     min_date = df['datetime'].dt.date.min()
     max_date = df['datetime'].dt.date.max()
+    # get unique first day of months from your datetime column
+    #df['month_start'] = df['datetime'].dt.to_period('M').dt.to_timestamp()
+    #months = sorted(df['month_start'].unique())
 
     start_date, end_date = st.slider(
         "Select date range",
@@ -213,7 +216,7 @@ if uploaded:
                     title='Top 20 Frequent Words/Phrases',
                     labels={'count': 'Frequency', 'word': 'Word/Phrase'})
     fig_freq.update_layout(
-    height=200,                            # taller figure to fit more words
+    height=300,                            # taller figure to fit more words
     margin=dict(l=150, r=30, t=50, b=50),   # more left margin for long words
     yaxis=dict(tickfont=dict(size=10))      # smaller y-axis font size if needed
     )
