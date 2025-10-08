@@ -91,6 +91,11 @@ def parse_whatsapp_txt(text: str) -> pd.DataFrame:
     # keep ordering as in file
     return df
 
+def clean_illegal_chars(text):
+    if isinstance(text, str):
+        # Removes control chars except \n, \r, \t (allowed in Excel)
+        return re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', text)
+    return text
 
 def to_excel_bytes(df: pd.DataFrame) -> bytes:
     buffer = BytesIO()
@@ -222,15 +227,7 @@ if uploaded:
     )
     st.plotly_chart(fig_freq, use_container_width=True)
 
-    #4 Re-format whatsapp message history in Excel for download
-    # Offer Excel download (Date in col A, Time in col B, Message in col C as the user requested). We'll order columns accordingly and include Sender as extra column.
-    export_df = df2.copy()
-    # Create columns in the requested order
-    export_df_for_excel = export_df[["Date", "Time", "Sender", "Message", ]]
-    excel_bytes = to_excel_bytes(export_df_for_excel)
-    st.download_button("Download parsed messages as Excel", data=excel_bytes, file_name="whatsapp_parsed.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-    #5 Plot frequency of messages per month in selected period
+    #4 Plot frequency of messages per month in selected period
     st.subheader("Monthly frequency")
     if df2["Datetime"].isna().all():
         st.warning("No valid Datetime parsed, cannot compute monthly counts.")
@@ -248,7 +245,7 @@ if uploaded:
     plt.xticks(rotation=45)
     st.pyplot(fig1)
 
-    #6 Correlation / co-occurrence heatmap among senders based on previous k messages
+    #5 Correlation / co-occurrence heatmap among senders based on previous k messages
     st.subheader("Sender co-occurrence (previous k messages)")
     k = st.slider("k (number of previous messages to consider)", min_value=1, max_value=10, value=5)
 
@@ -264,8 +261,12 @@ if uploaded:
         row_sums = co_mat.sum(axis=1).replace(0, 1)
         co_norm = co_mat.div(row_sums, axis=0)
 
-        fig2, ax2 = plt.subplots(figsize=(10, 8))
-        sns.heatmap(co_norm, annot=True, fmt='.2f', ax=ax2, cbar_kws={'label': 'P(previous | current) normalized by row'})
+        cmap = sns.light_palette("green", as_cmap=True)
+        fig2, ax2 = plt.subplots(figsize=(14, 10))
+        sns.heatmap(co_norm, annot=True, fmt='.2f', ax=ax2, cmap=cmap, cbar_kws={'label': 'P(previous | current) normalized by row'},
+            annot_kws={"size": 8})
+        #fig2, ax2 = plt.subplots(figsize=(10, 8))
+        #sns.heatmap(co_norm, annot=True, fmt='.2f', ax=ax2, cbar_kws={'label': 'P(previous | current) normalized by row'})
         ax2.set_title(f"Normalized co-occurrence (previous up to {k} messages)")
         plt.xticks(rotation=45)
         plt.yticks(rotation=0)
@@ -281,6 +282,18 @@ if uploaded:
             plt.xticks(rotation=45)
             plt.yticks(rotation=0)
             st.pyplot(fig3)
+
+    #6 Re-format whatsapp message history in Excel for download
+    # Offer Excel download (Date in col A, Time in col B, Message in col C as the user requested). We'll order columns accordingly and include Sender as extra column.
+    export_df = df2.copy()
+    # Create columns in the requested order
+    export_df_for_excel = export_df[["Date", "Time", "Sender", "Message", ]]
+    for col in ["Date", "Time", "Sender", "Message"]:
+        export_df_for_excel[col] = export_df_for_excel[col].apply(clean_illegal_chars)
+
+    excel_bytes = to_excel_bytes(export_df_for_excel)
+    st.download_button("Download parsed messages as Excel", data=excel_bytes, file_name="whatsapp_("+uploaded.name+").xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 else:
     st.info("Upload a WhatsApp chat.txt file to start analyzing.")
 
