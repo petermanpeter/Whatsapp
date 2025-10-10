@@ -14,6 +14,8 @@ import plotly.express as px
 from datetime import datetime
 from openpyxl.utils import get_column_letter
 from openpyxl import load_workbook
+from openpyxl.styles import Alignment
+from matplotlib import font_manager
 
 nltk.download('vader_lexicon')
 HEADER_REGEX = re.compile(r"^(\d{1,2}/\d{1,2}/\d{2,4})\s*(上午|下午|早上|晚上)?\s*(\d{1,2}:\d{2})\s*-\s*(.*?):\s*(.*)$")
@@ -108,10 +110,11 @@ def to_excel_bytes(df: pd.DataFrame) -> bytes:
     ws = wb.active
 
     # Set column widths (adjust columns as you want)
-    widths = {'A': 15, 'B': 12, 'C': 20, 'D': 80}  # Example widths for Date, Time, Sender, Message
+    widths = {'A': 10, 'B': 10, 'C': 15, 'D': 100}  # Example widths for Date, Time, Sender, Message
     for col, width in widths.items():
         ws.column_dimensions[col].width = width
-
+    for cell in ws['D']:
+        cell.alignment = Alignment(wrap_text=True, vertical='top')
     # Save workbook back to bytes buffer
     new_buffer = BytesIO()
     wb.save(new_buffer)
@@ -137,9 +140,9 @@ def compute_sender_cooccurrence(df: pd.DataFrame, k: int = 5) -> pd.DataFrame:
     mat_df = pd.DataFrame(mat, index=unique, columns=unique)
     return mat_df
 
-st.title("WhatsApp Chat Analyzer")
+st.title("WhatsApp Message History Analyzer")
 
-uploaded = st.file_uploader("Upload WhatsApp chat text file (.txt)", type=['txt'])
+uploaded = st.file_uploader("Upload WhatsApp message history text file (.txt)", type=['txt'])
 use_stopwords = st.checkbox("Ignore common stopwords", value=True)
 stopwords = set(["to", "a", "the", "and", "of", "in", "on", "for", "is", "it", "that", "with", "as", "at"])
 if uploaded:
@@ -172,6 +175,7 @@ if uploaded:
     st.write(f"Showing {len(df_filtered)} messages between {start_date} and {end_date}")
     
     #1 Word Cloud
+    st.write(f"[1] Word Cloud")
     text = " ".join(df_filtered['message'].dropna())
     text = text.replace("媒體已略去", "")
     if use_stopwords:
@@ -195,7 +199,7 @@ if uploaded:
     #st.bar_chart(sentiment_counts)
     #st.write(f"Avg sentiment: {df_filtered['sentiment'].mean():.3f}")
 
-    #3 Top 20 frequent words/phrases
+    #2 Top 20 frequent words/phrases
     # After filtering df_filtered with selected date range
     messages = df_filtered['message'].dropna().str.lower().str.replace("媒體已略去", "").tolist()
 
@@ -218,17 +222,17 @@ if uploaded:
     fig_freq = px.bar(df_top20.sort_values('count'), 
                     x='count', y='word',
                     orientation='h',
-                    title='Top 20 Frequent Words/Phrases',
-                    labels={'count': 'Frequency', 'word': 'Word/Phrase'})
+                    title='[2] Top 20 Frequent words',
+                    labels={'word': 'Words', 'count': 'f'})
     fig_freq.update_layout(
-    height=300,                            # taller figure to fit more words
-    margin=dict(l=150, r=30, t=50, b=50),   # more left margin for long words
+    height=400,                            # taller figure to fit more words
+    margin=dict(l=170, r=30, t=50, b=50),   # more left margin for long words
     yaxis=dict(tickfont=dict(size=10))      # smaller y-axis font size if needed
     )
     st.plotly_chart(fig_freq, use_container_width=True)
 
-    #4 Plot frequency of messages per month in selected period
-    st.subheader("Monthly frequency")
+    #3 Plot frequency of messages per month in selected period
+    st.subheader("[3] Monthly frequency")
     if df2["Datetime"].isna().all():
         st.warning("No valid Datetime parsed, cannot compute monthly counts.")
     else:
@@ -245,28 +249,36 @@ if uploaded:
     plt.xticks(rotation=45)
     st.pyplot(fig1)
 
-    #5 Correlation / co-occurrence heatmap among senders based on previous k messages
-    st.subheader("Sender co-occurrence (previous k messages)")
+    #4 Correlation / co-occurrence heatmap among senders based on previous k messages
+    st.subheader("[4] Sender co-occurrence heatmap (previous k messages)")
     k = st.slider("k (number of previous messages to consider)", min_value=1, max_value=10, value=5)
 
     if len(df2) == 0:
         st.write("No messages to analyze.")
     else:
-        co_mat = compute_sender_cooccurrence(df, k=k)
+        co_mat = compute_sender_cooccurrence(df2, k=k)
         st.write("Raw counts (rows=current sender, cols=previous sender)")
+        st.markdown("""
+            <style>.dataframe td,.dataframe th {
+                font-size: 10px!important;
+            }
+            </style>
+        """, unsafe_allow_html=True)
         st.dataframe(co_mat)
-
-
         # Normalize rows to show relative frequency that a previous sender appears before current
         row_sums = co_mat.sum(axis=1).replace(0, 1)
         co_norm = co_mat.div(row_sums, axis=0)
-
         cmap = sns.light_palette("green", as_cmap=True)
+        #font_files = font_manager.findSystemFonts(fontpaths='')
+        #for font_file in font_files:
+        #    font_manager.fontManager.addfont(font_file)
+        font_manager.fontManager.addfont('NotoSansTC-Thin.ttf')
+        font = font_manager.FontProperties(fname='NotoSansTC-Thin.ttf')
+        plt.rcParams['font.sans-serif'] = [font.get_name(),'Microsoft JhengHei', 'Noto Sans CJK TC', 'Arial Unicode MS']
+        plt.rcParams['axes.unicode_minus'] = False  # to show minus correctly
         fig2, ax2 = plt.subplots(figsize=(14, 10))
         sns.heatmap(co_norm, annot=True, fmt='.2f', ax=ax2, cmap=cmap, cbar_kws={'label': 'P(previous | current) normalized by row'},
             annot_kws={"size": 8})
-        #fig2, ax2 = plt.subplots(figsize=(10, 8))
-        #sns.heatmap(co_norm, annot=True, fmt='.2f', ax=ax2, cbar_kws={'label': 'P(previous | current) normalized by row'})
         ax2.set_title(f"Normalized co-occurrence (previous up to {k} messages)")
         plt.xticks(rotation=45)
         plt.yticks(rotation=0)
@@ -283,8 +295,9 @@ if uploaded:
             plt.yticks(rotation=0)
             st.pyplot(fig3)
 
-    #6 Re-format whatsapp message history in Excel for download
+    #5 Re-format whatsapp message history in Excel for download
     # Offer Excel download (Date in col A, Time in col B, Message in col C as the user requested). We'll order columns accordingly and include Sender as extra column.
+    st.write(f"[5] Re-format whatsapp message history for Excel output")
     export_df = df2.copy()
     # Create columns in the requested order
     export_df_for_excel = export_df[["Date", "Time", "Sender", "Message", ]]
