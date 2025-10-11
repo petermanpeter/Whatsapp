@@ -157,23 +157,38 @@ if uploaded:
         
     st.success(f"Loaded {len(df)} messages")
 
-    min_date = df['datetime'].dt.date.min()
-    max_date = df['datetime'].dt.date.max()
-    # get unique first day of months from your datetime column
-    #df['month_start'] = df['datetime'].dt.to_period('M').dt.to_timestamp()
-    #months = sorted(df['month_start'].unique())
+    #min_date = df['datetime'].dt.date.min()
+    #max_date = df['datetime'].dt.date.max()
+    #start_date, end_date = st.slider(
+    #    "Select date range",
+    #    min_value=min_date,
+    #    max_value=max_date,
+    #    value=(min_date, max_date)
+    #)
+    #df_filtered = df[(df['datetime'].dt.date >= start_date) & (df['datetime'].dt.date <= end_date)]
+    #st.write(f"Showing {len(df_filtered)} messages between {start_date} and {end_date}")
+    
+    # slider in month, instead of in days
+    min_month = df['datetime'].dt.to_period('M').min().to_timestamp()
+    max_month = df['datetime'].dt.to_period('M').max().to_timestamp()
 
-    start_date, end_date = st.slider(
-        "Select date range",
-        min_value=min_date,
-        max_value=max_date,
-        value=(min_date, max_date)
+    months = pd.date_range(min_month, max_month, freq='MS').to_pydatetime().tolist()
+    month_strs = [m.strftime('%Y-%m') for m in months]
+
+    start_str, end_str = st.select_slider(
+        "Select month range",
+        options=month_strs,
+        value=(month_strs[0], month_strs[-1])
     )
 
-    df_filtered = df[(df['datetime'].dt.date >= start_date) & (df['datetime'].dt.date <= end_date)]
+    start_date = pd.to_datetime(start_str + '-01')
+    end_date = pd.to_datetime(end_str + '-01').replace(day=28) + pd.offsets.MonthEnd(0)
 
-    st.write(f"Showing {len(df_filtered)} messages between {start_date} and {end_date}")
-    
+    df_filtered = df[(df['datetime'] >= start_date) & (df['datetime'] <= end_date)]
+
+    st.write(f"Showing {len(df_filtered)} messages between {start_str} and {end_str}")
+
+
     #1 Word Cloud
     st.write(f"[1] Word Cloud")
     text = " ".join(df_filtered['message'].dropna())
@@ -233,10 +248,12 @@ if uploaded:
 
     #3 Plot frequency of messages per month in selected period
     st.subheader("[3] Monthly frequency")
-    if df2["Datetime"].isna().all():
+    #df_filtered
+    df_filtered = df2[(df2['Datetime'] >= start_date) & (df2['Datetime'] <= end_date)]
+    if df_filtered["Datetime"].isna().all():
         st.warning("No valid Datetime parsed, cannot compute monthly counts.")
     else:
-        df_time = df2.dropna(subset=["Datetime"]).set_index("Datetime").sort_index()
+        df_time = df_filtered.dropna(subset=["Datetime"]).set_index("Datetime").sort_index()
     # filter
     df_period = df_time.loc[start_date:end_date]
     monthly = df_period.resample('M').size()
@@ -256,7 +273,8 @@ if uploaded:
     if len(df2) == 0:
         st.write("No messages to analyze.")
     else:
-        co_mat = compute_sender_cooccurrence(df2, k=k)
+        df_filtered = df2[(df2['Datetime'] >= start_date) & (df2['Datetime'] <= end_date)]
+        co_mat = compute_sender_cooccurrence(df_filtered, k=k)
         st.write("Raw counts (rows=current sender, cols=previous sender)")
         st.markdown("""
             <style>.dataframe td,.dataframe th {
@@ -298,7 +316,8 @@ if uploaded:
     #5 Re-format whatsapp message history in Excel for download
     # Offer Excel download (Date in col A, Time in col B, Message in col C as the user requested). We'll order columns accordingly and include Sender as extra column.
     st.write(f"[5] Re-format whatsapp message history for Excel output")
-    export_df = df2.copy()
+    #export_df = df2.copy()
+    export_df = df2[(df2['Datetime'] >= start_date) & (df2['Datetime'] <= end_date)]
     # Create columns in the requested order
     export_df_for_excel = export_df[["Date", "Time", "Sender", "Message", ]]
     for col in ["Date", "Time", "Sender", "Message"]:
