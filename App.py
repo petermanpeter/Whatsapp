@@ -72,24 +72,24 @@ def parse_whatsapp_txt(text: str) -> pd.DataFrame:
             current = {
                 "Date": dt.date() if dt is not None else date_str,
                 "Time": dt.time() if dt is not None else time_str,
-                "Message": message,
-                "Sender": sender,
-                "Datetime": dt,
+                "message": message,
+                "sender": sender,
+                "datetime": dt,
             }
         else:
             # continuation of previous message
             if current is None:
                 # orphan line (no header seen yet) - skip or treat as system
                 continue
-            current["Message"] += "\n" + line
+            current["message"] += "\n" + line
 
     if current:
         rows.append(current)
 
     df = pd.DataFrame(rows)
-    # ensure Datetime column is proper dtype
-    if "Datetime" in df.columns:
-        df["Datetime"] = pd.to_datetime(df["Datetime"], errors="coerce")
+    # ensure datetime column is proper dtype
+    if "datetime" in df.columns:
+        df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
     # keep ordering as in file
     return df
 
@@ -110,7 +110,7 @@ def to_excel_bytes(df: pd.DataFrame) -> bytes:
     ws = wb.active
 
     # Set column widths (adjust columns as you want)
-    widths = {'A': 10, 'B': 10, 'C': 15, 'D': 100}  # Example widths for Date, Time, Sender, Message
+    widths = {'A': 10, 'B': 10, 'C': 15, 'D': 100}  # Example widths for Date, Time, sender, message
     for col, width in widths.items():
         ws.column_dimensions[col].width = width
     for cell in ws['D']:
@@ -125,7 +125,7 @@ def to_excel_bytes(df: pd.DataFrame) -> bytes:
 
 def compute_sender_cooccurrence(df: pd.DataFrame, k: int = 5) -> pd.DataFrame:
     """Compute co-occurrence matrix where value[current, previous] = count of times `previous` appeared within last k messages before `current`."""
-    senders = list(df2["Sender"].astype(str))
+    senders = list(df["sender"].astype(str))
     unique = sorted(list(set(senders)))
     idx = {s: i for i, s in enumerate(unique)}
     mat = np.zeros((len(unique), len(unique)), dtype=int) # rows: current, cols: previous
@@ -140,7 +140,7 @@ def compute_sender_cooccurrence(df: pd.DataFrame, k: int = 5) -> pd.DataFrame:
     mat_df = pd.DataFrame(mat, index=unique, columns=unique)
     return mat_df
 
-st.title("WhatsApp Message History Analyzer")
+st.title("WhatsApp message History Analyzer")
 
 uploaded = st.file_uploader("Upload WhatsApp message history text file (.txt)", type=['txt'])
 use_stopwords = st.checkbox("Ignore common stopwords", value=True)
@@ -249,36 +249,41 @@ if uploaded:
     #3 Plot frequency of messages per month in selected period
     st.subheader("[3] Monthly frequency")
     #df_filtered
-    df_filtered = df2[(df2['Datetime'] >= start_date) & (df2['Datetime'] <= end_date)]
-    if df_filtered["Datetime"].isna().all():
-        st.warning("No valid Datetime parsed, cannot compute monthly counts.")
+    df_filtered = df2[(df2['datetime'] >= start_date) & (df2['datetime'] <= end_date)]
+    if df_filtered["datetime"].isna().all():
+        st.warning("No valid datetime parsed, cannot compute monthly counts.")
     else:
-        df_time = df_filtered.dropna(subset=["Datetime"]).set_index("Datetime").sort_index()
+        df_time = df_filtered.dropna(subset=["datetime"]).set_index("datetime").sort_index()
     # filter
     df_period = df_time.loc[start_date:end_date]
-    monthly = df_period.resample('M').size()
+    #monthly = df_period.resample('M').size()
+    #fig1, ax1 = plt.subplots(figsize=(10, 4))
+    #ax1.plot(monthly.index, monthly.values)
+    #ax1.set_title("messages per month")
+    #ax1.set_xlabel("Month")
+    #ax1.set_ylabel("message count")
+    #plt.xticks(rotation=45)
+    #st.pyplot(fig1)
+    monthly = df_period.resample('M').size().reset_index(name='count')
+    fig = px.line(monthly, x='datetime', y='count', title='messages per month')
+    fig.update_layout(xaxis_title='Month', yaxis_title='message count')
+    st.plotly_chart(fig, use_container_width=True)
 
-    fig1, ax1 = plt.subplots(figsize=(10, 4))
-    ax1.plot(monthly.index, monthly.values)
-    ax1.set_title("Messages per month")
-    ax1.set_xlabel("Month")
-    ax1.set_ylabel("Message count")
-    plt.xticks(rotation=45)
-    st.pyplot(fig1)
 
     #4 Correlation / co-occurrence heatmap among senders based on previous k messages
-    st.subheader("[4] Sender co-occurrence heatmap (previous k messages)")
+    st.subheader("[4] sender co-occurrence heatmap (previous k messages)")
     k = st.slider("k (number of previous messages to consider)", min_value=1, max_value=10, value=5)
 
     if len(df2) == 0:
         st.write("No messages to analyze.")
     else:
-        df_filtered = df2[(df2['Datetime'] >= start_date) & (df2['Datetime'] <= end_date)]
-        co_mat = compute_sender_cooccurrence(df_filtered, k=k)
+        df_filtered = df2[(df2['datetime'] >= start_date) & (df2['datetime'] <= end_date)]
+        co_mat = compute_sender_cooccurrence(df_period, k=k)    #df_filtered
         st.write("Raw counts (rows=current sender, cols=previous sender)")
+        st.write("how often did sender X(col) talk just before sender Y(row)")
         st.markdown("""
             <style>.dataframe td,.dataframe th {
-                font-size: 10px!important;
+                font-size: 7px!important;
             }
             </style>
         """, unsafe_allow_html=True)
@@ -314,13 +319,13 @@ if uploaded:
             st.pyplot(fig3)
 
     #5 Re-format whatsapp message history in Excel for download
-    # Offer Excel download (Date in col A, Time in col B, Message in col C as the user requested). We'll order columns accordingly and include Sender as extra column.
+    # Offer Excel download (Date in col A, Time in col B, message in col C as the user requested). We'll order columns accordingly and include sender as extra column.
     st.write(f"[5] Re-format whatsapp message history for Excel output")
     #export_df = df2.copy()
-    export_df = df2[(df2['Datetime'] >= start_date) & (df2['Datetime'] <= end_date)]
+    export_df = df2[(df2['datetime'] >= start_date) & (df2['datetime'] <= end_date)]
     # Create columns in the requested order
-    export_df_for_excel = export_df[["Date", "Time", "Sender", "Message", ]]
-    for col in ["Date", "Time", "Sender", "Message"]:
+    export_df_for_excel = export_df[["Date", "Time", "sender", "message", ]]
+    for col in ["Date", "Time", "sender", "message"]:
         export_df_for_excel[col] = export_df_for_excel[col].apply(clean_illegal_chars)
 
     excel_bytes = to_excel_bytes(export_df_for_excel)
