@@ -6,3 +6,5 @@ nltk
 plotly
 openpyxl
 seaborn
+networkx
+numpy

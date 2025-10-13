@@ -16,6 +16,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl import load_workbook
 from openpyxl.styles import Alignment
 from matplotlib import font_manager
+import networkx as nx
 
 nltk.download('vader_lexicon')
 HEADER_REGEX = re.compile(r"^(\d{1,2}/\d{1,2}/\d{2,4})\s*(上午|下午|早上|晚上)?\s*(\d{1,2}:\d{2})\s*-\s*(.*?):\s*(.*)$")
@@ -256,14 +257,6 @@ if uploaded:
         df_time = df_filtered.dropna(subset=["datetime"]).set_index("datetime").sort_index()
     # filter
     df_period = df_time.loc[start_date:end_date]
-    #monthly = df_period.resample('M').size()
-    #fig1, ax1 = plt.subplots(figsize=(10, 4))
-    #ax1.plot(monthly.index, monthly.values)
-    #ax1.set_title("messages per month")
-    #ax1.set_xlabel("Month")
-    #ax1.set_ylabel("message count")
-    #plt.xticks(rotation=45)
-    #st.pyplot(fig1)
     monthly = df_period.resample('M').size().reset_index(name='count')
     fig = px.line(monthly, x='datetime', y='count', title='messages per month')
     fig.update_layout(xaxis_title='Month', yaxis_title='message count')
@@ -318,10 +311,52 @@ if uploaded:
             plt.yticks(rotation=0)
             st.pyplot(fig3)
 
-    #5 Re-format whatsapp message history in Excel for download
+    #5 Visual flows and directed graph among current senders and previous senders
+    st.subheader("[5] Visual flows and Directed graph")
+    #senders = list(df_period["sender"].astype(str))
+    #senders = co_mat.index.tolist()
+    senders = co_norm.index.tolist()
+    
+    # Build directed graph from co-occurrence matrix (prev_sender -> current_sender)
+    G = nx.DiGraph()
+    for i, cur_sender in enumerate(senders):
+        for j, prev_sender in enumerate(senders):
+            weight = co_norm.iloc[i, j]
+            #weight = co_mat.iloc[i, j]
+            if weight > 0:
+                G.add_edge(prev_sender, cur_sender, weight=weight)
+
+    # Detect clusters/communities (using simple connected components on undirected version)
+    undirected_G = G.to_undirected()
+    clusters = list(nx.connected_components(undirected_G))
+    cluster_map = {}
+    for i, cluster in enumerate(clusters):
+        for node in cluster:
+            cluster_map[node] = i
+
+    # Set colors by cluster
+    colors = ['lightblue', 'lightgreen', 'lightcoral', 'orange']
+    node_colors = [colors[cluster_map[node] % len(colors)] for node in G.nodes()]
+
+    #pos = nx.spring_layout(G, seed=42)  # layout with no overlap
+    #pos = nx.kamada_kawai_layout(G)  # or try nx.circular_layout(G)
+    pos = nx.circular_layout(G)
+    plt.figure(figsize=(20,14))
+    nx.draw_networkx_nodes(G, pos, node_size=3000, node_color=node_colors)
+    edges = G.edges(data=True)
+    weights = [d['weight'] for (u,v,d) in edges]
+    nx.draw_networkx_edges(G, pos, arrowstyle='-|>', arrowsize=25, width=[w*3 for w in weights], connectionstyle='arc3, rad=0.1')
+    nx.draw_networkx_labels(G, pos, font_size=16)
+
+    plt.title("Chat flow and clusters between specific senders")
+    plt.axis('off')
+    st.pyplot(plt.gcf())
+
+
+
+    #6 Re-format whatsapp message history in Excel for download
     # Offer Excel download (Date in col A, Time in col B, message in col C as the user requested). We'll order columns accordingly and include sender as extra column.
-    st.write(f"[5] Re-format whatsapp message history for Excel output")
-    #export_df = df2.copy()
+    st.subheader(f"[6] Re-format whatsapp message history for Excel output")
     export_df = df2[(df2['datetime'] >= start_date) & (df2['datetime'] <= end_date)]
     # Create columns in the requested order
     export_df_for_excel = export_df[["Date", "Time", "sender", "message", ]]
