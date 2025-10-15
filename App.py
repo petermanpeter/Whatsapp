@@ -189,182 +189,190 @@ if uploaded:
 
     st.write(f"Showing {len(df_filtered)} messages between {start_str} and {end_str}")
 
-
-    #1 Word Cloud
-    st.write(f"[1] Word Cloud")
-    text = " ".join(df_filtered['message'].dropna())
-    text = text.replace("媒體已略去", "")
-    if use_stopwords:
-        words = [w for w in re.findall(r'\b\w+\b', text.lower()) if w not in stopwords]
-        text = " ".join(words)
-    if text.strip():
-        wc = WordCloud(font_path='NotoSansTC-Thin.ttf',width=1200, height=900, background_color='white').generate(text)
-        fig, ax = plt.subplots(figsize=(10, 5))
-        ax.imshow(wc, interpolation='bilinear')
-        ax.axis('off')
-        st.pyplot(fig)
-
-    #2 Sentiment Intensity analysis
-    #sia = SentimentIntensityAnalyzer()
-    #df_filtered['sentiment'] = df_filtered['message'].apply(lambda x: sia.polarity_scores(x)['compound'])
-
-    #sentiment_counts = df_filtered['sentiment'].apply(
-    #    lambda s: 'Positive' if s>0.05 else ('Negative' if s<-0.05 else 'Neutral')
-    #).value_counts()
-
-    #st.bar_chart(sentiment_counts)
-    #st.write(f"Avg sentiment: {df_filtered['sentiment'].mean():.3f}")
-
-    #2 Top 20 frequent words/phrases
-    # After filtering df_filtered with selected date range
-    messages = df_filtered['message'].dropna().str.lower().str.replace("媒體已略去", "").tolist()
-
-    # Simple tokenization: split by non-word chars, filter empty
-    words = []
-    for msg in messages:
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(['Word Cloud', 'Top20 freq word', 'Monthly freq', 'Co-occurrence heatmap', 'Excel download'])
+    with tab1:
+        #1 Word Cloud
+        #st.write(f"[1] Word Cloud")
+        st.title("[1] Word Cloud")
+        text = " ".join(df_filtered['message'].dropna())
+        text = text.replace("媒體已略去", "")
         if use_stopwords:
-            words.extend([w for w in re.findall(r'\b\w+\b', msg) if w not in stopwords])
-        else:
-            words.extend(re.findall(r'\b\w+\b', msg))
+            words = [w for w in re.findall(r'\b\w+\b', text.lower()) if w not in stopwords]
+            text = " ".join(words)
+        if text.strip():
+            wc = WordCloud(font_path='NotoSansTC-Thin.ttf',width=1200, height=900, background_color='white').generate(text)
+            fig, ax = plt.subplots(figsize=(10, 5))
+            ax.imshow(wc, interpolation='bilinear')
+            ax.axis('off')
+            st.pyplot(fig)
 
-    # Count frequencies
-    counter = Counter(words)
-    top20 = counter.most_common(20)
+        #2 Sentiment Intensity analysis
+        #sia = SentimentIntensityAnalyzer()
+        #df_filtered['sentiment'] = df_filtered['message'].apply(lambda x: sia.polarity_scores(x)['compound'])
 
-    # Prepare data for plotting
-    df_top20 = pd.DataFrame(top20, columns=['word', 'count'])
+        #sentiment_counts = df_filtered['sentiment'].apply(
+        #    lambda s: 'Positive' if s>0.05 else ('Negative' if s<-0.05 else 'Neutral')
+        #).value_counts()
 
-    # Plot horizontal bar chart with Plotly
-    fig_freq = px.bar(df_top20.sort_values('count'), 
-                    x='count', y='word',
-                    orientation='h',
-                    title='[2] Top 20 Frequent words',
-                    labels={'word': 'Words', 'count': 'f'})
-    fig_freq.update_layout(
-    height=400,                            # taller figure to fit more words
-    margin=dict(l=170, r=30, t=50, b=50),   # more left margin for long words
-    yaxis=dict(tickfont=dict(size=10))      # smaller y-axis font size if needed
-    )
-    st.plotly_chart(fig_freq, use_container_width=True)
+        #st.bar_chart(sentiment_counts)
+        #st.write(f"Avg sentiment: {df_filtered['sentiment'].mean():.3f}")
 
-    #3 Plot frequency of messages per month in selected period
-    st.subheader("[3] Monthly frequency")
-    #df_filtered
-    df_filtered = df2[(df2['datetime'] >= start_date) & (df2['datetime'] <= end_date)]
-    if df_filtered["datetime"].isna().all():
-        st.warning("No valid datetime parsed, cannot compute monthly counts.")
-    else:
-        df_time = df_filtered.dropna(subset=["datetime"]).set_index("datetime").sort_index()
-    # filter
-    df_period = df_time.loc[start_date:end_date]
-    monthly = df_period.resample('M').size().reset_index(name='count')
-    fig = px.line(monthly, x='datetime', y='count', title='messages per month')
-    fig.update_layout(xaxis_title='Month', yaxis_title='message count')
-    st.plotly_chart(fig, use_container_width=True)
+    with tab2:
+        #2 Top 20 frequent words/phrases
+        st.title("Top 20 Frequent words")
+        # After filtering df_filtered with selected date range
+        messages = df_filtered['message'].dropna().str.lower().str.replace("媒體已略去", "").tolist()
 
+        # Simple tokenization: split by non-word chars, filter empty
+        words = []
+        for msg in messages:
+            if use_stopwords:
+                words.extend([w for w in re.findall(r'\b\w+\b', msg) if w not in stopwords])
+            else:
+                words.extend(re.findall(r'\b\w+\b', msg))
 
-    #4 Correlation / co-occurrence heatmap among senders based on previous k messages
-    st.subheader("[4] sender co-occurrence heatmap (previous k messages)")
-    k = st.slider("k (number of previous messages to consider)", min_value=1, max_value=10, value=5)
+        # Count frequencies
+        counter = Counter(words)
+        top20 = counter.most_common(20)
 
-    if len(df2) == 0:
-        st.write("No messages to analyze.")
-    else:
+        # Prepare data for plotting
+        df_top20 = pd.DataFrame(top20, columns=['word', 'count'])
+
+        # Plot horizontal bar chart with Plotly
+        fig_freq = px.bar(df_top20.sort_values('count'), 
+                        x='count', y='word',
+                        orientation='h',
+                        title='[2] Top 20 Frequent words',
+                        labels={'word': 'Words', 'count': 'f'})
+        fig_freq.update_layout(
+        height=400,                            # taller figure to fit more words
+        margin=dict(l=170, r=30, t=50, b=50),   # more left margin for long words
+        yaxis=dict(tickfont=dict(size=10))      # smaller y-axis font size if needed
+        )
+        st.plotly_chart(fig_freq, use_container_width=True)
+
+    with tab3:
+        #3 Plot frequency of messages per month in selected period
+        #st.subheader("[3] Monthly frequency")
+        st.title("[3] Monthly frequency")
+        #df_filtered
         df_filtered = df2[(df2['datetime'] >= start_date) & (df2['datetime'] <= end_date)]
-        co_mat = compute_sender_cooccurrence(df_period, k=k)    #df_filtered
-        st.write("Raw counts (rows=current sender, cols=previous sender)")
-        st.write("how often did sender X(col) talk just before sender Y(row)")
-        st.markdown("""
-            <style>.dataframe td,.dataframe th {
-                font-size: 7px!important;
-            }
-            </style>
-        """, unsafe_allow_html=True)
-        st.dataframe(co_mat)
-        # Normalize rows to show relative frequency that a previous sender appears before current
-        row_sums = co_mat.sum(axis=1).replace(0, 1)
-        co_norm = co_mat.div(row_sums, axis=0)
-        cmap = sns.light_palette("green", as_cmap=True)
-        #font_files = font_manager.findSystemFonts(fontpaths='')
-        #for font_file in font_files:
-        #    font_manager.fontManager.addfont(font_file)
-        font_manager.fontManager.addfont('NotoSansTC-Thin.ttf')
-        font = font_manager.FontProperties(fname='NotoSansTC-Thin.ttf')
-        plt.rcParams['font.sans-serif'] = [font.get_name(),'Microsoft JhengHei', 'Noto Sans CJK TC', 'Arial Unicode MS']
-        plt.rcParams['axes.unicode_minus'] = False  # to show minus correctly
-        fig2, ax2 = plt.subplots(figsize=(14, 10))
-        sns.heatmap(co_norm, annot=True, fmt='.2f', ax=ax2, cmap=cmap, cbar_kws={'label': 'P(previous | current) normalized by row'},
-            annot_kws={"size": 8})
-        ax2.set_title(f"Normalized co-occurrence (previous up to {k} messages)")
-        plt.xticks(rotation=45)
-        plt.yticks(rotation=0)
-        st.pyplot(fig2)
+        if df_filtered["datetime"].isna().all():
+            st.warning("No valid datetime parsed, cannot compute monthly counts.")
+        else:
+            df_time = df_filtered.dropna(subset=["datetime"]).set_index("datetime").sort_index()
+        # filter
+        df_period = df_time.loc[start_date:end_date]
+        monthly = df_period.resample('M').size().reset_index(name='count')
+        fig = px.line(monthly, x='datetime', y='count', title='messages per month')
+        fig.update_layout(xaxis_title='Month', yaxis_title='message count')
+        st.plotly_chart(fig, use_container_width=True)
 
-        # Optionally compute Pearson correlation between sender columns (based on co-occurrence vectors)
-        if st.checkbox("Also show Pearson correlation of sender co-occurrence vectors"):
-            # compute correlation matrix among rows of co_norm
-            corr = co_norm.T.corr()
-            fig3, ax3 = plt.subplots(figsize=(10, 8))
-            sns.heatmap(corr, annot=True, fmt='.2f', ax=ax3)
-            ax3.set_title("Pearson correlation between senders (based on co-occurrence patterns)")
+    with tab4:
+        #4 Correlation / co-occurrence heatmap among senders based on previous k messages
+        #st.subheader("[4] sender co-occurrence heatmap (previous k messages)")
+        st.title("[4] sender co-occurrence heatmap (previous k messages)")
+        
+        k = st.slider("k (number of previous messages to consider)", min_value=1, max_value=10, value=5)
+
+        if len(df2) == 0:
+            st.write("No messages to analyze.")
+        else:
+            df_filtered = df2[(df2['datetime'] >= start_date) & (df2['datetime'] <= end_date)]
+            co_mat = compute_sender_cooccurrence(df_period, k=k)    #df_filtered
+            st.write("Raw counts (rows=current sender, cols=previous sender)")
+            st.write("how often did sender X(col) talk just before sender Y(row)")
+            st.markdown("""
+                <style>.dataframe td,.dataframe th {
+                    font-size: 7px!important;
+                }
+                </style>
+            """, unsafe_allow_html=True)
+            st.dataframe(co_mat)
+            # Normalize rows to show relative frequency that a previous sender appears before current
+            row_sums = co_mat.sum(axis=1).replace(0, 1)
+            co_norm = co_mat.div(row_sums, axis=0)
+            cmap = sns.light_palette("green", as_cmap=True)
+            #font_files = font_manager.findSystemFonts(fontpaths='')
+            #for font_file in font_files:
+            #    font_manager.fontManager.addfont(font_file)
+            font_manager.fontManager.addfont('NotoSansTC-Thin.ttf')
+            font = font_manager.FontProperties(fname='NotoSansTC-Thin.ttf')
+            plt.rcParams['font.sans-serif'] = [font.get_name(),'Microsoft JhengHei', 'Noto Sans CJK TC', 'Arial Unicode MS']
+            plt.rcParams['axes.unicode_minus'] = False  # to show minus correctly
+            fig2, ax2 = plt.subplots(figsize=(14, 10))
+            sns.heatmap(co_norm, annot=True, fmt='.2f', ax=ax2, cmap=cmap, cbar_kws={'label': 'P(previous | current) normalized by row'},
+                annot_kws={"size": 8})
+            ax2.set_title(f"Normalized co-occurrence (previous up to {k} messages)")
             plt.xticks(rotation=45)
             plt.yticks(rotation=0)
-            st.pyplot(fig3)
+            st.pyplot(fig2)
 
-    #5 Visual flows and directed graph among current senders and previous senders
-    st.subheader("[5] Visual flows and Directed graph")
-    #senders = list(df_period["sender"].astype(str))
-    #senders = co_mat.index.tolist()
-    senders = co_norm.index.tolist()
-    
-    # Build directed graph from co-occurrence matrix (prev_sender -> current_sender)
-    G = nx.DiGraph()
-    for i, cur_sender in enumerate(senders):
-        for j, prev_sender in enumerate(senders):
-            weight = co_norm.iloc[i, j]
-            #weight = co_mat.iloc[i, j]
-            if weight > 0:
-                G.add_edge(prev_sender, cur_sender, weight=weight)
+            # Optionally compute Pearson correlation between sender columns (based on co-occurrence vectors)
+            if st.checkbox("Also show Pearson correlation of sender co-occurrence vectors"):
+                # compute correlation matrix among rows of co_norm
+                corr = co_norm.T.corr()
+                fig3, ax3 = plt.subplots(figsize=(10, 8))
+                sns.heatmap(corr, annot=True, fmt='.2f', ax=ax3)
+                ax3.set_title("Pearson correlation between senders (based on co-occurrence patterns)")
+                plt.xticks(rotation=45)
+                plt.yticks(rotation=0)
+                st.pyplot(fig3)
 
-    # Detect clusters/communities (using simple connected components on undirected version)
-    undirected_G = G.to_undirected()
-    clusters = list(nx.connected_components(undirected_G))
-    cluster_map = {}
-    for i, cluster in enumerate(clusters):
-        for node in cluster:
-            cluster_map[node] = i
+        #5 Visual flows and directed graph among current senders and previous senders
+        st.subheader("[5] Visual flows and Directed graph")
+        #senders = list(df_period["sender"].astype(str))
+        #senders = co_mat.index.tolist()
+        senders = co_norm.index.tolist()
+        
+        # Build directed graph from co-occurrence matrix (prev_sender -> current_sender)
+        G = nx.DiGraph()
+        for i, cur_sender in enumerate(senders):
+            for j, prev_sender in enumerate(senders):
+                weight = co_norm.iloc[i, j]
+                #weight = co_mat.iloc[i, j]
+                if weight > 0:
+                    G.add_edge(prev_sender, cur_sender, weight=weight)
 
-    # Set colors by cluster
-    colors = ['lightblue', 'lightgreen', 'lightcoral', 'orange']
-    node_colors = [colors[cluster_map[node] % len(colors)] for node in G.nodes()]
+        # Detect clusters/communities (using simple connected components on undirected version)
+        undirected_G = G.to_undirected()
+        clusters = list(nx.connected_components(undirected_G))
+        cluster_map = {}
+        for i, cluster in enumerate(clusters):
+            for node in cluster:
+                cluster_map[node] = i
 
-    #pos = nx.spring_layout(G, seed=42)  # layout with no overlap
-    #pos = nx.kamada_kawai_layout(G)  # or try nx.circular_layout(G)
-    pos = nx.circular_layout(G)
-    plt.figure(figsize=(20,14))
-    nx.draw_networkx_nodes(G, pos, node_size=3000, node_color=node_colors)
-    edges = G.edges(data=True)
-    weights = [d['weight'] for (u,v,d) in edges]
-    nx.draw_networkx_edges(G, pos, arrowstyle='-|>', arrowsize=25, width=[w*3 for w in weights], connectionstyle='arc3, rad=0.1')
-    nx.draw_networkx_labels(G, pos, font_size=16)
+        # Set colors by cluster
+        colors = ['lightblue', 'lightgreen', 'lightcoral', 'orange']
+        node_colors = [colors[cluster_map[node] % len(colors)] for node in G.nodes()]
 
-    plt.title("Chat flow and clusters between specific senders")
-    plt.axis('off')
-    st.pyplot(plt.gcf())
+        #pos = nx.spring_layout(G, seed=42)  # layout with no overlap
+        #pos = nx.kamada_kawai_layout(G)  # or try nx.circular_layout(G)
+        pos = nx.circular_layout(G)
+        plt.figure(figsize=(20,14))
+        nx.draw_networkx_nodes(G, pos, node_size=3000, node_color=node_colors)
+        edges = G.edges(data=True)
+        weights = [d['weight'] for (u,v,d) in edges]
+        nx.draw_networkx_edges(G, pos, arrowstyle='-|>', arrowsize=25, width=[w*3 for w in weights], connectionstyle='arc3, rad=0.1')
+        nx.draw_networkx_labels(G, pos, font_size=16)
 
+        plt.title("Chat flow and clusters between specific senders")
+        plt.axis('off')
+        st.pyplot(plt.gcf())
 
+    with tab5:
+        #6 Re-format whatsapp message history in Excel for download
+        # Offer Excel download (Date in col A, Time in col B, message in col C as the user requested). We'll order columns accordingly and include sender as extra column.
+        #st.subheader(f"[6] Re-format whatsapp message history for Excel output")
+        st.title(f"[6] Re-format whatsapp message history for Excel output")
+        export_df = df2[(df2['datetime'] >= start_date) & (df2['datetime'] <= end_date)]
+        # Create columns in the requested order
+        export_df_for_excel = export_df[["Date", "Time", "sender", "message", ]]
+        for col in ["Date", "Time", "sender", "message"]:
+            export_df_for_excel[col] = export_df_for_excel[col].apply(clean_illegal_chars)
 
-    #6 Re-format whatsapp message history in Excel for download
-    # Offer Excel download (Date in col A, Time in col B, message in col C as the user requested). We'll order columns accordingly and include sender as extra column.
-    st.subheader(f"[6] Re-format whatsapp message history for Excel output")
-    export_df = df2[(df2['datetime'] >= start_date) & (df2['datetime'] <= end_date)]
-    # Create columns in the requested order
-    export_df_for_excel = export_df[["Date", "Time", "sender", "message", ]]
-    for col in ["Date", "Time", "sender", "message"]:
-        export_df_for_excel[col] = export_df_for_excel[col].apply(clean_illegal_chars)
-
-    excel_bytes = to_excel_bytes(export_df_for_excel)
-    st.download_button("Download parsed messages as Excel", data=excel_bytes, file_name="whatsapp_("+uploaded.name+").xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        excel_bytes = to_excel_bytes(export_df_for_excel)
+        st.download_button("Download parsed messages as Excel", data=excel_bytes, file_name="whatsapp_("+uploaded.name+").xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 else:
     st.info("Upload a WhatsApp chat.txt file to start analyzing.")
